@@ -11,10 +11,12 @@ from .fx.convert import convert
 from .backend_config import get_tensorrt_backend_config_dict  # noqa: F401
 from .fx.graph_module import ObservedGraphModule
 from .fx.qconfig_utils import (
-    check_is_valid_convert_custom_config_dict,
     check_is_valid_fuse_custom_config_dict,
-    check_is_valid_prepare_custom_config_dict,
     check_is_valid_qconfig_dict,
+)
+from .fx.custom_config import (
+    PrepareCustomConfig,
+    ConvertCustomConfig,
 )
 from .fx.utils import graph_pretty_str  # noqa: F401
 from .fx.utils import get_custom_module_class_keys  # noqa: F401
@@ -178,14 +180,14 @@ def _prepare_fx(
     qconfig_dict: Any,
     is_qat: bool,
     example_inputs: Tuple[Any, ...],
-    prepare_custom_config_dict: Optional[Dict[str, Any]] = None,
+    prepare_custom_config: Optional[PrepareCustomConfig] = None,
     equalization_qconfig_dict: Optional[Dict[str, Any]] = None,
     backend_config_dict: Optional[Dict[str, Any]] = None,
     is_standalone_module: bool = False,
 ) -> ObservedGraphModule:
     r""" Internal helper function for prepare_fx
     Args:
-      `model`, `qconfig_dict`, `prepare_custom_config_dict`, `equalization_qonfig_dict`:
+      `model`, `qconfig_dict`, `prepare_custom_config`, `equalization_qonfig_dict`:
       see docs for :func:`~torch.ao.quantization.prepare_fx`
       `is_standalone_module`: a boolean flag indicates whether we are
       quantizing a standalone module or not, a standalone module
@@ -194,21 +196,16 @@ forward graph of the parent module,
       the way we quantize standalone module is described in:
       :func:`~torch.ao.quantization._prepare_standalone_module_fx`
     """
-    if prepare_custom_config_dict is None:
-        prepare_custom_config_dict = {}
+    if prepare_custom_config is None:
+        prepare_custom_config = PrepareCustomConfig()
     if equalization_qconfig_dict is None:
         equalization_qconfig_dict = {}
 
     check_is_valid_qconfig_dict(qconfig_dict)
-    check_is_valid_prepare_custom_config_dict(prepare_custom_config_dict)
     check_is_valid_qconfig_dict(equalization_qconfig_dict)
 
-    skipped_module_names = prepare_custom_config_dict.get(
-        "non_traceable_module_name", []
-    )
-    skipped_module_classes = prepare_custom_config_dict.get(
-        "non_traceable_module_class", []
-    )
+    skipped_module_names = prepare_custom_config.non_traceable_module_names
+    skipped_module_classes = prepare_custom_config.non_traceable_module_classes
 
     # swap FloatFunctional with FXFloatFunctional
     _swap_ff_with_fxff(model)
@@ -216,23 +213,11 @@ forward graph of the parent module,
     # symbolically trace the model
     if not is_standalone_module:
         # standalone module and custom module config are applied in top level module
-        standalone_module_name_configs = prepare_custom_config_dict.get(
-            "standalone_module_name", []
-        )
-        skipped_module_names += [config[0] for config in standalone_module_name_configs]
+        skipped_module_names += [c.module_name for c in prepare_custom_config.standalone_module_name_configs]
+        skipped_module_classes += [c.module_class for c in prepare_custom_config.standalone_module_class_configs]
+        skipped_module_classes += get_custom_module_class_keys(prepare_custom_config.float_to_observed_mapping)
 
-        standalone_module_class_configs = prepare_custom_config_dict.get(
-            "standalone_module_class", []
-        )
-        skipped_module_classes += [
-            config[0] for config in standalone_module_class_configs
-        ]
-        float_custom_module_classes = get_custom_module_class_keys(
-            prepare_custom_config_dict, "float_to_observed_custom_module_class"
-        )
-        skipped_module_classes += float_custom_module_classes
-
-    preserved_attributes = prepare_custom_config_dict.get("preserved_attributes", [])
+    preserved_attributes = prepare_custom_config.preserved_attributes
     tracer = QuantizationTracer(skipped_module_names, skipped_module_classes)
     graph_module = GraphModule(model, tracer.trace(model))
     for attr_name in preserved_attributes:
@@ -240,7 +225,7 @@ forward graph of the parent module,
     graph_module = _fuse_fx(
         graph_module,
         is_qat,
-        prepare_custom_config_dict,
+        prepare_custom_config,
         backend_config_dict)
     prepared = prepare(
         graph_module,
@@ -248,7 +233,7 @@ forward graph of the parent module,
         is_qat,
         tracer.node_name_to_scope,
         example_inputs=example_inputs,
-        prepare_custom_config_dict=prepare_custom_config_dict,
+        prepare_custom_config=prepare_custom_config,
         equalization_qconfig_dict=equalization_qconfig_dict,
         backend_config_dict=backend_config_dict,
         is_standalone_module=is_standalone_module,
@@ -264,7 +249,7 @@ def _prepare_standalone_module_fx(
     qconfig_dict: Any,
     is_qat: bool,
     example_inputs: Tuple[Any, ...],
-    prepare_custom_config_dict: Optional[Dict[str, Any]] = None,
+    prepare_custom_config: Optional[PrepareCustomConfig] = None,
     backend_config_dict: Optional[Dict[str, Any]] = None,
 ) -> GraphModule:
     r""" [Internal use only] Prepare a standalone module, so that it can be used when quantizing the
@@ -294,7 +279,7 @@ def _prepare_standalone_module_fx(
         qconfig_dict,
         is_qat,
         example_inputs,
-        prepare_custom_config_dict,
+        prepare_custom_config,
         backend_config_dict=backend_config_dict,
         is_standalone_module=True,
     )
@@ -344,10 +329,11 @@ def prepare_fx(
     model: torch.nn.Module,
     qconfig_dict: Any,
     example_inputs: Tuple[Any, ...],
-    prepare_custom_config_dict: Optional[Dict[str, Any]] = None,
+    prepare_custom_config: Optional[PrepareCustomConfig] = None,
     equalization_qconfig_dict: Optional[Dict[str, Any]] = None,
     backend_config_dict: Optional[Dict[str, Any]] = None,
 ) -> ObservedGraphModule:
+    # TODO: update this comment
     r""" Prepare a model for post training static quantization
 
     Args:
@@ -395,7 +381,7 @@ def prepare_fx(
             # matching the rule
           }
 
-      * `prepare_custom_config_dict`: customization configuration dictionary for quantization tool::
+      * `prepare_custom_config`: customization configuration for quantization tool::
 
           prepare_custom_config_dict = {
             # optional: specify the path for standalone modules
@@ -497,7 +483,7 @@ def prepare_fx(
         qconfig_dict,
         False,  # is_qat
         example_inputs,
-        prepare_custom_config_dict,
+        prepare_custom_config,
         equalization_qconfig_dict,
         backend_config_dict,
     )
@@ -507,7 +493,7 @@ def prepare_qat_fx(
     model: torch.nn.Module,
     qconfig_dict: Any,
     example_inputs: Tuple[Any, ...],
-    prepare_custom_config_dict: Optional[Dict[str, Any]] = None,
+    prepare_custom_config: Optional[PrepareCustomConfig] = None,
     backend_config_dict: Optional[Dict[str, Any]] = None,
 ) -> ObservedGraphModule:
     r""" Prepare a model for quantization aware training
@@ -516,7 +502,7 @@ def prepare_qat_fx(
       * `model`: torch.nn.Module model, must be in train mode
       * `qconfig_dict`: see :func:`~torch.ao.quantization.prepare_fx`
       * `example_inputs`: see :func:`~torch.ao.quantization.prepare_fx`
-      * `prepare_custom_config_dict`: see :func:`~torch.ao.quantization.prepare_fx`
+      * `prepare_custom_config`: see :func:`~torch.ao.quantization.prepare_fx`
       * `backend_config_dict`: see :func:`~torch.ao.quantization.prepare_fx`
 
     Return:
@@ -548,7 +534,7 @@ def prepare_qat_fx(
         qconfig_dict,
         True,  # is_qat
         example_inputs,
-        prepare_custom_config_dict,
+        prepare_custom_config,
         backend_config_dict=backend_config_dict,
     )
 
@@ -684,7 +670,7 @@ def _convert_standalone_module_fx(
     and convert it to a quantized model
 
     Returns a quantized standalone module, whether input/output is quantized is
-    specified by prepare_custom_config_dict, with
+    specified by prepare_custom_config, with
     input_quantized_idxs, output_quantized_idxs, please
     see docs for prepare_fx for details
     """

@@ -2178,7 +2178,7 @@ static inline C10_HOST_DEVICE T calc_log_ndtr(T x) {
 }
 
 template<typename T>
-static inline T chebyshev_polynomial_u_forward(T x, std::int64_t n) {
+static inline T C10_HOST_DEVICE chebyshev_polynomial_u_forward(T x, std::int64_t n) {
     if (n < 0) {
         return T(0.0);
     }
@@ -2192,7 +2192,7 @@ static inline T chebyshev_polynomial_u_forward(T x, std::int64_t n) {
     }
 
     if ((n > 6) && (std::abs(x) < T(1.0))) {
-        return std::cos(n *std::acos(x));
+        return std::cos(n * std::acos(x));
     }
 
     if (n == 0) {

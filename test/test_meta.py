@@ -599,10 +599,8 @@ meta_function_expected_failures = {
     torch.linalg.lstsq: {f32, f64},  # aten::linalg_lstsq.out
     torch.linalg.lu_factor: {f32, f64},  # aten::_local_scalar_dense
     torch.linalg.slogdet: {f32, f64},  # aten::linalg_slogdet
-    torch.linalg.solve: {f32, f64},  # aten::linalg_solve, aten::linalg_solve.out
     torch.linalg.solve_triangular: {f32, f64},  # aten::linalg_solve_triangular
     torch.linalg.tensorinv: {f32, f64},  # aten::_local_scalar_dense
-    torch.linalg.tensorsolve: {f32, f64},  # aten::linalg_solve
     torch.logdet: {f32, f64},  # aten::_local_scalar_dense, aten::nonzero
 }
 
@@ -894,13 +892,9 @@ meta_dispatch_expected_failures = {
     aten.linalg_lstsq.default: {f32, f64},  # aten::linalg_lstsq.out
     aten.linalg_qr.default: {f32, f64},  # aten::_linalg_qr_helper
     aten.linalg_slogdet.default: {f32, f64},  # aten::linalg_slogdet
-    aten.linalg_solve.default: {f32, f64},  # aten::linalg_solve
-    aten.linalg_solve.out: {f32, f64},  # aten::linalg_solve.out
     aten.linalg_solve_triangular.default: {f32, f64},  # aten::linalg_solve_triangular
     aten.linalg_solve_triangular.out: {f32, f64},  # aten::linalg_solve_triangular.out
     aten.logdet.default: {f32, f64},  # aten::_local_scalar_dense, aten::nonzero
-    aten.lu_solve.default: {f32, f64},  # aten::lu_solve
-    aten.lu_solve.out: {f32, f64},  # aten::lu_solve.out
     aten.ormqr.default: {f32, f64},  # aten::ormqr
     aten.ormqr.out: {f32, f64},  # aten::ormqr.out
     aten.symeig.default: {f32, f64},  # aten::_symeig_helper

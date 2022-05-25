@@ -14,6 +14,7 @@
 #include <type_traits>
 
 #include <ATen/core/grad_mode.h>
+#include <ATen/core/enum_tag.h>
 
 namespace c10 {
 
@@ -177,7 +178,7 @@ public:
    * If a schema with the same operator name and overload name already exists,
    * this function will check that both schemas are exactly identical.
    */
-  RegistrationHandleRAII registerDef(FunctionSchema schema, std::string debug);
+  RegistrationHandleRAII registerDef(FunctionSchema schema, std::string debug, const std::vector<at::Tag>& tags = {});
 
   /**
    * Register a kernel to the dispatch table for an operator.
@@ -336,6 +337,19 @@ public:
 
   void checkInvariants() const {
     return operatorDef_->op.checkInvariants();
+  }
+
+  const std::vector<at::Tag>& getTags() const {
+    return operatorDef_->op.getTags();
+  }
+
+  bool hasTag(const at::Tag& tag) const {
+    for(const auto& tag_: getTags()) {
+      if (tag == tag_) {
+        return true;
+      }
+    }
+    return false;
   }
 
   template<class FuncType>

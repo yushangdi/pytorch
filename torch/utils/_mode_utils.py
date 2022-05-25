@@ -8,15 +8,9 @@ from dataclasses import dataclass
 # Specifically, it has the helper functions for enable_ and push_X_mode and the
 # ModeInfo class, which is extended by each where they are different
 
-# used by both TorchFunctionMode and TorchDispatchMode, this will wrap the init
-# function to require an "inner" kwarg
 def _wrap_init(f):
-    undef = object()
-
     @functools.wraps(f)
-    def wrapped(self, *args, inner=undef, **kwargs):
-        if inner is not undef:
-            self.inner = inner
+    def wrapped(self, *args, **kwargs):
         return f(self, *args, **kwargs)
     return wrapped
 
@@ -29,7 +23,6 @@ def _wrap_init(f):
 class _ModeInfo:
     mode_name: str
     mode_class: type  # the class related to the mode that's allowed to be passed in
-    base_mode_class: type  # the base class of mode_class that dispatches to the original function
 
     def mode_class_name(self):
         return self.mode_class.__name__
@@ -85,35 +78,5 @@ def _enable_mode(mode, mode_info: _ModeInfo, *, replace=None, ignore_preexisting
     mode_info.set_mode(mode)
     try:
         yield
-    finally:
-        mode_info.set_mode(old)
-
-
-# shared version of push_torch_function/push_torch_dispatch_mode in order to deduplicate the code.
-# The differences between the modes are captured by `mode_info` and then queried when they're
-# needed during the function's invocation
-def _push_mode(ctor, mode_info: _ModeInfo) -> Iterator[object]:
-    # Helper function for pushing a mode onto the stack
-    if isinstance(ctor, mode_info.mode_class):
-        raise ValueError(
-            f'Expected a {mode_info.mode_class_name()} constructor function, but got an '
-            f'instance of {mode_info.mode_class_name()} {ctor}.  Consider using '
-            f'enable_{mode_info.mode_name}_mode instead.'
-        )
-    old = mode_info.get_mode()
-    if old is None:
-        inner = mode_info.base_mode_class(inner=None)
-    else:
-        inner = old
-
-    mode = ctor(inner=inner)
-    if not isinstance(mode, mode_info.mode_class):
-        raise ValueError(
-            f'The callable passed to push_{mode_info.mode_name}_mode'
-            f'must return a {mode_info.mode_class_name()}'
-        )
-    mode_info.set_mode(mode)
-    try:
-        yield mode
     finally:
         mode_info.set_mode(old)

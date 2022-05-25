@@ -486,7 +486,6 @@ meta disagrees with real impl:
 
 RE_NOT_IMPLEMENTED_MSG = re.compile(r"Could not run '([^']+)' with arguments ")
 
-
 meta_function_expected_failures = {
     torch.Tensor.item: {b8, bf16, c128, c64, f16, f32, f64, i16, i32, i64, i8, u8},  # aten::_local_scalar_dense
     torch.Tensor.to_sparse: {b8, bf16, f16, f32, f64, i16, i32, i64, i8, u8},  # aten::to_sparse, aten::to_sparse.sparse_dim
@@ -582,7 +581,6 @@ meta_function_expected_failures = {
     torch.vdot: {bf16, f32, f64, i16, i32, i64, i8, u8},  # aten::vdot
     torch.qr: {f32, f64},
     torch.ormqr: {f32, f64},
-    torch.lu_solve: {f32, f64},
     torch.cholesky: {f32, f64},  # aten::cholesky, aten::cholesky.out
     torch.cholesky_inverse: {f32, f64},  # aten::cholesky_inverse, aten::cholesky_inverse.out
     torch.cholesky_solve: {f32, f64},  # aten::_cholesky_solve_helper
@@ -686,7 +684,6 @@ meta_function_device_expected_failures['cuda'] = {
     torch.linalg.householder_product: {f32, f64},  # aten::linalg_householder_product, aten::linalg_householder_product.out
     torch.linalg.inv: {f32, f64},  # aten::_local_scalar_dense
     torch.linalg.ldl_factor: {f32, f64},  # aten::_local_scalar_dense
-    torch.linalg.lu_factor: {f32, f64},  # aten::_local_scalar_dense
     torch.linalg.solve_triangular: {f32, f64},  # aten::linalg_solve_triangular, aten::linalg_solve_triangular.out
     torch.linalg.tensorinv: {f32, f64},  # aten::_local_scalar_dense
     torch.logcumsumexp: {bf16, f16},  # aten::_logcumsumexp, aten::_logcumsumexp.out

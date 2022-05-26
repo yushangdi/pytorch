@@ -2216,7 +2216,7 @@ static inline T C10_HOST_DEVICE chebyshev_polynomial_u_forward(T x, std::int64_t
     return r;
 } // chebyshev_polynomial_u_forward(T x, std::int64_t n)
 
-template<typename T>
+template<typename T, bool is_cuda=false>
 static inline C10_HOST_DEVICE T chebyshev_polynomial_u_forward(T x, T n) {
     return chebyshev_polynomial_u_forward(x, static_cast<std::int64_t>(n));
 } // chebyshev_polynomial_u_forward(T x, T n)

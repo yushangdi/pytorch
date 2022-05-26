@@ -1147,6 +1147,7 @@ aten_native_source_codegen_list = [
     "aten/src/ATen/native/cpu/layer_norm_kernel.cpp",
     "aten/src/ATen/native/cpu/WeightNormKernel.cpp",
     "aten/src/ATen/native/quantized/cpu/kernels/QuantizedOpKernels.cpp",
+    "aten/src/ATen/native/quantized/cpu/IndexKernel.cpp",
 ]
 
 # This aten native source file list will not go through aten codegen process
@@ -1208,6 +1209,7 @@ aten_native_source_non_codegen_list = [
     "aten/src/ATen/native/quantized/fake_quant_per_channel_affine.cpp",
     "aten/src/ATen/native/quantized/fake_quant_per_tensor_affine.cpp",
     "aten/src/ATen/native/quantized/library.cpp",
+    "aten/src/ATen/native/quantized/TensorAdvancedIndexing.cpp",
     "aten/src/ATen/native/quantized/cpu/ruy_utils.cpp",
     "aten/src/ATen/native/quantized/cpu/xnnpack_utils.cpp",
     "aten/src/ATen/native/quantized/qlinear_unpack.cpp",

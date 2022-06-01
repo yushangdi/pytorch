@@ -27,8 +27,28 @@ def fx_hash(arg):
         else:
             raise TypeError
 
-def check_same(node, n):
-    return node.target == n.target and node.args == n.args and node.kwargs == n.kwargs
+# def check_same(node, n):
+#     return node.target == n.target and node.args == n.args and node.kwargs == n.kwargs
+def check_args(new_args, old_args, env):
+    if (len(new_args)!=len(old_args)):
+        return False
+    for i in range(len(new_args)):
+        if (new_args[i] != old_args[i]):
+            if not isinstance(new_args[i], torch.fx.node.Node):
+                return False
+            elif (not old_args[i] in env):
+                return False
+            elif new_args[i] != env[old_args[i]]:
+                return False
+    return True
+def check_same(new_node, old_node, env):
+    if (new_node.target != old_node.target):
+        return False
+    if not check_args(new_node.args, old_node.args, env):
+        return False
+    if not check_args(new_node.kwargs, old_node.kwargs, env):
+        return False
+    return True
 
 def modify(fx_g):
     new_graph = fx.Graph()
@@ -49,25 +69,25 @@ def modify(fx_g):
             # print(n.name) # e.g. cos_1
 
 
-            try:
-                args = list(n.args) #convert to list because tuple type is not mutable
-                kwargs = list(n.kwargs)
-                for i in range(len(args)):
-                    if isinstance(args[i], torch.fx.node.Node) and args[i] in env:
-                        args[i] = env[args[i]]
-                for i in range(len(kwargs)):
-                    if isinstance(kwargs[i], torch.fx.node.Node) and kwargs[i] in env:
-                        kwargs[i] = env[kwargs[i]]
-                hash_arg = fx_hash([args, kwargs])
-                hash_val = (n.target, hash_arg) # (operator, arg) tuple([env[n.args[0]]])
-                if hash_val in hash_env: #  and check_same(hash_env[hash_val], n) TODO: what if hash collision happened?
-                    env[n] = hash_env[hash_val]
-                    continue
-            except TypeError:
-                print("WARNING: TypeError: {}. Node not checked for CSE".format(n))
-                new_node = new_graph.node_copy(n, lambda x: env[x])
-                env[n] = new_node #maybe redundant?
+            # try:
+            args = list(n.args) #convert to list because tuple type is not mutable
+            kwargs = list(n.kwargs)
+            for i in range(len(args)):
+                if isinstance(args[i], torch.fx.node.Node) and args[i] in env:
+                    args[i] = env[args[i]]
+            for i in range(len(kwargs)):
+                if isinstance(kwargs[i], torch.fx.node.Node) and kwargs[i] in env:
+                    kwargs[i] = env[kwargs[i]]
+            hash_arg = fx_hash([args, kwargs])
+            hash_val = (n.target, hash_arg) # (operator, arg) tuple([env[n.args[0]]])
+            if hash_val in hash_env and check_same(hash_env[hash_val], n, env): #   TODO: what if hash collision happened?
+                env[n] = hash_env[hash_val]
                 continue
+            # except TypeError:
+            #     print("WARNING: TypeError: {}. Node not checked for CSE".format(n))
+            #     new_node = new_graph.node_copy(n, lambda x: env[x])
+            #     env[n] = new_node #maybe redundant?
+            #     continue
             # new_node = new_graph.call_function(torch.ops.aten.sin, tuple([env[n.args[0]]]))
             new_node = new_graph.node_copy(n, lambda x: env[x])
             hash_env[hash_val] = new_node

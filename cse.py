@@ -7,13 +7,14 @@ import hashlib
 import json
 
 # https://stackoverflow.com/questions/3054449/how-to-properly-define-hash-function-for-a-list-of-objects
+#TODO: another way: recursively change immutable_list to tuple?
 def fx_hash(arg):
+    if isinstance(arg, list): # torch.fx.immutable_collections.immutable_list is also a list
+        arg = tuple(arg)
     try:
         return hash(arg)
     except TypeError:
-        if(isinstance(arg, torch.fx.immutable_collections.immutable_list) or 
-           isinstance(arg, tuple) or
-           isinstance(arg, list)):
+        if(isinstance(arg, tuple)):
             hashCode = 1
             for ele in arg:
                 hashCode = 31*hashCode + (0 if ele is None else fx_hash(ele)) #TODO: but this works for set, but not for ordered list
@@ -41,22 +42,29 @@ def modify(fx_g):
             new_node = new_graph.node_copy(n, lambda x: env[x])
             env[n] = new_node
         else: #n.op == 'call_function' or n.op == 'call_module' or n.op == 'call_method'
-            # print(n.target)
-            # print(n.args)
-            # print(n.kwargs)
+            print("======")
+            print(n.target)
+            print(n.args)
+            print(n.kwargs)
             # print(n.name) # e.g. cos_1
 
+
             try:
-            # args = n.args
-            # for i in range(len(args)):
-            #     print(type(args[i]))
-                hash_arg = fx_hash([n.args, n.kwargs]) #TODO: substitute args
+                args = list(n.args) #convert to list because tuple type is not mutable
+                kwargs = list(n.kwargs)
+                for i in range(len(args)):
+                    if isinstance(args[i], torch.fx.node.Node) and args[i] in env:
+                        args[i] = env[args[i]]
+                for i in range(len(kwargs)):
+                    if isinstance(kwargs[i], torch.fx.node.Node) and kwargs[i] in env:
+                        kwargs[i] = env[kwargs[i]]
+                hash_arg = fx_hash([args, kwargs])
                 hash_val = (n.target, hash_arg) # (operator, arg) tuple([env[n.args[0]]])
-                if hash_val in hash_env and check_same(hash_env[hash_val], n):
+                if hash_val in hash_env: #  and check_same(hash_env[hash_val], n) TODO: what if hash collision happened?
                     env[n] = hash_env[hash_val]
                     continue
             except TypeError:
-                print("WARNING: type of args is not hashable: {}. Node not checked for CSE".format(n))
+                print("WARNING: TypeError: {}. Node not checked for CSE".format(n))
                 new_node = new_graph.node_copy(n, lambda x: env[x])
                 env[n] = new_node #maybe redundant?
                 continue

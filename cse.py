@@ -85,26 +85,34 @@ def modify(fx_g: torch.fx.graph_module.GraphModule):
             # print(n.args)
             # print(n.kwargs)
             # print(n.name) # e.g. cos_1
-            # try:
-            args = list(n.args) #convert to list because tuple type is not mutable
+            # try: 
+
+            # convert to list because tuple type is not mutable
+            args = list(n.args)
             kwargs = list(n.kwargs)
+
+            # change the args to their mapping in env (if exist)
             for i in range(len(args)):
                 if isinstance(args[i], torch.fx.node.Node) and args[i] in env:
                     args[i] = env[args[i]]
             for i in range(len(kwargs)):
                 if isinstance(kwargs[i], torch.fx.node.Node) and kwargs[i] in env:
                     kwargs[i] = env[kwargs[i]]
+            
+            # hash args to a number
             hash_arg = fx_hash([args, kwargs])
-            hash_val = (n.target, hash_arg) # (operator, arg) tuple([env[n.args[0]]])
+            hash_val = (n.target, hash_arg)
+
+            # check if a node can be eliminated. check both hash and node to avoid hash collision problem
             if hash_val in hash_env and check_same(hash_env[hash_val], n, env): 
                 env[n] = hash_env[hash_val]
                 continue
-            # except TypeError:
+            # except TypeError: # TODO: add try_catch for robustness? default to not copy when there's a type problem
             #     print("WARNING: TypeError: {}. Node not checked for CSE".format(n))
             #     new_node = new_graph.node_copy(n, lambda x: env[x])
             #     env[n] = new_node #maybe redundant?
             #     continue
-            # new_node = new_graph.call_function(torch.ops.aten.sin, tuple([env[n.args[0]]]))
+           
             new_node = new_graph.node_copy(n, lambda x: env[x])
             hash_env[hash_val] = new_node
             env[n] = new_node

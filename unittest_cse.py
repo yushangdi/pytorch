@@ -86,8 +86,8 @@ class ReduceTestCase(unittest.TestCase):
             c = a+a
             d = b+b
             return c+d
-        t = torch.randn()
-        check(f,t, 2)
+        t = torch.randn(1)
+        check(f,t, 3)
 
     
 

@@ -1,0 +1,14 @@
+{
+  "category": "confirmed_bug",
+  "summary": "run_decompositions() bakes compute_log_sumexp=False into the graph because FakeTensors lack requires_grad during tracing, causing backward to fail with 'LSE is not correctly aligned (strideH)'",
+  "answer": null,
+  "repro_code": "import torch\nfrom torchvision.models import VisionTransformer\n\n\ndevice = \"cuda\"\n\ninner_model = VisionTransformer(\n    image_size=224,\n    patch_size=16,\n    num_layers=12,\n    num_heads=6,\n    hidden_dim=384,\n    mlp_dim=4 * 384,\n    num_classes=1000,\n).to(device)\n\nsample_args = (torch.rand([10, 3, 224, 224], device=device),)\n\nprogram = torch.export.export(inner_model, args=sample_args)\nprogram = program.run_decompositions()\nprogram.module()(*sample_args).sum().backward()",
+  "repro_output": "RuntimeError: LSE is not correctly aligned (strideH)\n\nReproduced on nightly 2.12.0a0+gitcbc35eb. After run_decompositions(), the graph contains aten._scaled_dot_product_efficient_attention.default with compute_log_sumexp=False baked in. The FakeTensor metadata shows logsumexp shape [4, 6, 0] (empty). At runtime, the backward kernel receives this empty LSE and fails the alignment check.",
+  "commit_hash": "cbc35eb2b3e31592a42fad99c1d5e86785ed832a",
+  "fix_description": "Root cause: run_decompositions() decomposes scaled_dot_product_attention via its CIA (Composite Implicit Autograd) implementation in attention.cpp. This calls should_compute_logsumexp() (attention.cpp:635-638), which checks requires_grad && GradMode. During export tracing with FakeTensors, requires_grad is False, so compute_log_sumexp=False gets baked into the decomposed graph. At runtime, _scaled_dot_product_efficient_attention produces an empty logsumexp tensor (shape [B, H, 0]), and the backward kernel in kernel_backward.h:1188 fails the lse_strideH % 8 == 0 check.\n\nSuggested fix: In attention.cpp, modify should_compute_logsumexp() to also return true when inputs are tensor subclass-like (FakeTensors, proxy tensors), using the already-included isTensorSubclassLike() utility. This conservatively computes logsumexp during tracing to ensure backward correctness at runtime:\n\n  bool should_compute_logsumexp(...) {\n    ...\n    const bool any_subclass_like = at::isTensorSubclassLike(query) ||\n        at::isTensorSubclassLike(key) || at::isTensorSubclassLike(value);\n    return (any_inputs_require_grad && gradmode_enabled) || any_subclass_like;\n  }\n\nUser workaround: Force the math SDPA backend during export to avoid the efficient attention kernel entirely:\n\n  with torch.nn.attention.sdpa_kernel(torch.nn.attention.SDPBackend.MATH):\n      program = torch.export.export(inner_model, args=sample_args)\n      program = program.run_decompositions()",
+  "patch_file": null,
+  "existing_pr": null,
+  "cc": [
+    "tugsbayasgalan"
+  ]
+}

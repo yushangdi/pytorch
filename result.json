@@ -1,0 +1,14 @@
+{
+  "category": "no_repro",
+  "summary": "FBGEMM op schema incorrectly declares indice_weights as non-mutating; no repro code provided, fix belongs in FBGEMM source",
+  "answer": null,
+  "repro_code": null,
+  "repro_output": null,
+  "commit_hash": "cbc35eb2b3e31592a42fad99c1d5e86785ed832a",
+  "fix_description": "The error is not a PyTorch export bug. The FBGEMM operator fbgemm::int_nbit_split_embedding_codegen_lookup_function declares indice_weights as Tensor? (non-mutating) in its schema, but at runtime it mutates the tensor. The fix is to update the FBGEMM operator schema to change Tensor? indice_weights to Tensor(a!)? indice_weights. This change must be made in the FBGEMM source code where the operator is registered. As a workaround without modifying FBGEMM, the user could try wrapping the call with torch.no_grad() or cloning indice_weights before passing it to the operator, but the proper fix is the schema correction in FBGEMM.",
+  "patch_file": null,
+  "existing_pr": null,
+  "cc": [
+    "angelayi"
+  ]
+}

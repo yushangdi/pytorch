@@ -1,0 +1,14 @@
+{
+  "category": "confirmed_bug",
+  "summary": "DISABLED test_custom_op_with_memory_format_arg_xpu fails because the custom op only registers CPU and CUDA implementations, not XPU",
+  "answer": null,
+  "repro_code": "python -m pytest test/inductor/test_aot_inductor_custom_ops.py::AOTInductorTestABICompatibleGpu::test_custom_op_with_memory_format_arg_xpu -xvs",
+  "repro_output": null,
+  "commit_hash": "bfddf4ad58e91b26462602b930e09a250f95cb48",
+  "fix_description": "The test `test_custom_op_with_memory_format_arg` uses a custom op `aoti_custom_ops::fn_with_memory_format_arg` that is defined in the test file at line 126. The op's implementations are only registered for CPU (line 135-137) and CUDA (line 138-140), but not for XPU. When the test runs on XPU, it fails because there is no XPU dispatch kernel for this custom op.\n\nThe fix is to add an XPU implementation registration, similar to the CPU and CUDA ones:\n```python\n_memory_format_test_lib.impl(\n    \"fn_with_memory_format_arg\", _fn_with_memory_format_arg_impl, \"XPU\"\n)\n```\n\nThe same issue likely applies to the other custom ops in this file (`fn_with_layout_arg`, `fn_with_dtype_arg`, etc.) that were enabled for XPU in PR #166047 but only have CPU/CUDA implementations. The test was enabled for XPU by etaf in PR #166047, and the custom op was later added by Bin Bao in PR #173562 without XPU support.",
+  "patch_file": null,
+  "cc": [
+    "yushangdi",
+    "desertfire"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "category": "confirmed_bug",
+  "summary": "torch.export.load holds the GIL during tensor deserialization via get_record, preventing parallel loading. The get_record C++ binding lacks a gil_scoped_release and returns py::bytes (double copy), while get_storage_from_record already returns tensors directly.",
+  "answer": null,
+  "repro_code": null,
+  "repro_output": null,
+  "commit_hash": "03af6e5b3ebe1c62b4e1d29529325339385e9c02",
+  "fix_description": "Two changes: (1) C++ side (init.cpp): Release the GIL during the zip read in the get_record binding using py::gil_scoped_release, and add a new get_record_as_tensor binding that reads a record and returns a uint8 tensor directly (zero-copy from the C++ DataPtr, no py::bytes intermediate). (2) Python side (_package.py): Add a read_tensor method to PT2ArchiveReader that calls get_record_as_tensor and views the result as the target dtype. Update _build_file_map to use read_tensor instead of read_bytes, eliminating the double copy (file -> C++ buffer -> Python bytes -> tensor) and allowing the GIL to be released during I/O. This matches the torch.load path which achieves near-linear thread scaling.",
+  "patch_file": "fix.patch",
+  "existing_pr": null,
+  "cc": [
+    "angelayi"
+  ]
+}

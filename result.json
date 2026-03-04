@@ -1,0 +1,15 @@
+{
+  "category": "feature_request",
+  "summary": "Feature request to speed up torch.export.load() by exposing C++ schema types with pybind11 property bindings, eliminating slow Python-side JSON/dataclass deserialization",
+  "answer": null,
+  "repro_code": null,
+  "repro_output": null,
+  "commit_hash": "cbc35eb2b3e31592a42fad99c1d5e86785ed832a",
+  "fix_description": null,
+  "patch_file": null,
+  "existing_pr": "https://github.com/pytorch/pytorch/pull/176434",
+  "cc": [
+    "angelayi",
+    "tolleybot"
+  ]
+}

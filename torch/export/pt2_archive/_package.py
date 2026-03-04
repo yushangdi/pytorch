@@ -214,6 +214,14 @@ class PT2ArchiveReader:
         """
         return self.archive_file.get_record(name)
 
+    def read_tensor(self, name: str, dtype: torch.dtype) -> torch.Tensor:
+        """
+        Read a record from the archive directly as a tensor, avoiding the
+        intermediate py::bytes copy. The GIL is released during the zip read.
+        """
+        raw = self.archive_file.get_record_as_tensor(name)
+        return raw.view(dtype=dtype)
+
     def read_string(self, name: str) -> str:
         """
         Read a string object from the archive.
@@ -774,26 +782,26 @@ class PT2ArchiveContents:
     extra_files: dict[str, Any]
 
 
-def _create_flat_tensor_from_bytes(
-    tensor_bytes: bytes,
+def _create_flat_tensor(
+    raw_tensor: torch.Tensor,
     tensor_meta: schema.TensorMeta,
 ) -> torch.Tensor:
     """
-    Create a flat tensor from raw bytes with dtype, device and requires_grad.
+    Create a flat tensor from a raw uint8 tensor with dtype, device and requires_grad.
     It will be re-strided based on size, stride, and storage_offset later.
     """
-    dtype = deserialize_scalar_type(tensor_meta.dtype)
     size = deserialize_size(tensor_meta.sizes)
     device = deserialize_device(tensor_meta.device)
 
-    if len(tensor_bytes) != 0:
-        tensor = torch.frombuffer(
-            tensor_bytes, dtype=dtype, requires_grad=tensor_meta.requires_grad
-        ).to(device)
+    if raw_tensor.numel() != 0:
+        tensor = raw_tensor
+        if tensor_meta.requires_grad:
+            tensor = tensor.requires_grad_(True)
+        tensor = tensor.to(device)
     else:
-        # cannot call torch.frombuffer() on empty bytes
+        dtype = deserialize_scalar_type(tensor_meta.dtype)
         logger.warning(
-            "Cannot call torch.frombuffer() on empty bytes. "
+            "Cannot create tensor from empty record. "
             "Creating a tensor with zeros as workaround."
         )
         tensor = torch.zeros(size, dtype=dtype, device=device)
@@ -818,12 +826,14 @@ def _build_file_map(
         if payload_meta.path_name in file_map:
             continue
 
-        tensor_bytes = archive_reader.read_bytes(
-            os.path.join(base_dir, payload_meta.path_name)
-        )
         if payload_meta.tensor_meta is None:
             raise AssertionError("payload_meta.tensor_meta cannot be None")
-        tensor = _create_flat_tensor_from_bytes(tensor_bytes, payload_meta.tensor_meta)
+        dtype = deserialize_scalar_type(payload_meta.tensor_meta.dtype)
+        raw_tensor = archive_reader.read_tensor(
+            os.path.join(base_dir, payload_meta.path_name),
+            dtype,
+        )
+        tensor = _create_flat_tensor(raw_tensor, payload_meta.tensor_meta)
         file_map[payload_meta.path_name] = tensor
 
     return file_map
